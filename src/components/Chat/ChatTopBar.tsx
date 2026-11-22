@@ -7,13 +7,33 @@ import { useKindeBrowserClient } from '@kinde-oss/kinde-auth-nextjs'
 import { socket } from '@/lib/socket'
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 
+const CallTimer = ({ isActive }: { isActive: boolean }) => {
+  const [duration, setDuration] = useState('00:00')
+
+  useEffect(() => {
+    if (!isActive) {
+      setDuration('00:00')
+      return
+    }
+    const startTime = Date.now()
+    const timer = setInterval(() => {
+      const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000)
+      const mins = String(Math.floor(elapsedSeconds / 60)).padStart(2, '0')
+      const secs = String(elapsedSeconds % 60).padStart(2, '0')
+      setDuration(`${mins}:${secs}`)
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [isActive])
+
+  return <span>{duration}</span>
+}
+
 const ChatTopBar = () => {
   const { selectedUser, setSelectedUser } = useSelectedUser()
   const { user: currentUser } = useKindeBrowserClient()
   const [playSound] = useSound('/sounds/mouse-click.mp3')
 
   const [callState, setCallState] = useState<'idle' | 'calling' | 'incoming' | 'active'>('idle')
-  const [callDuration, setCallDuration] = useState('00:00')
   const [isMuted, setIsMuted] = useState(false)
   const [isVideoCall, setIsVideoCall] = useState(false)
   const [isCameraOff, setIsCameraOff] = useState(false)
@@ -28,6 +48,73 @@ const ChatTopBar = () => {
   const localStream = useRef<MediaStream | null>(null)
   const pendingOffer = useRef<any>(null)
   const iceCandidateQueue = useRef<RTCIceCandidateInit[]>([])
+
+  const primaryVideoRef = useRef<HTMLVideoElement | null>(null)
+  const secondaryVideoRef = useRef<HTMLVideoElement | null>(null)
+  const callingVideoRef = useRef<HTMLVideoElement | null>(null)
+  const hiddenVideoRef = useRef<HTMLVideoElement | null>(null)
+
+  const setPrimaryVideo = (el: HTMLVideoElement | null) => {
+    primaryVideoRef.current = el
+    if (el) {
+      const targetStream = isRemotePrimary ? remoteStream : localStreamState
+      if (el.srcObject !== targetStream) {
+        el.srcObject = targetStream
+      }
+    }
+  }
+
+  const setSecondaryVideo = (el: HTMLVideoElement | null) => {
+    secondaryVideoRef.current = el
+    if (el) {
+      const targetStream = isRemotePrimary ? localStreamState : remoteStream
+      if (el.srcObject !== targetStream) {
+        el.srcObject = targetStream
+      }
+    }
+  }
+
+  const setCallingVideo = (el: HTMLVideoElement | null) => {
+    callingVideoRef.current = el
+    if (el && el.srcObject !== localStreamState) {
+      el.srcObject = localStreamState
+    }
+  }
+
+  const setHiddenVideo = (el: HTMLVideoElement | null) => {
+    hiddenVideoRef.current = el
+    if (el && el.srcObject !== remoteStream) {
+      el.srcObject = remoteStream
+    }
+  }
+
+  useEffect(() => {
+    if (!primaryVideoRef.current) return
+    const targetStream = isRemotePrimary ? remoteStream : localStreamState
+    if (primaryVideoRef.current.srcObject !== targetStream) {
+      primaryVideoRef.current.srcObject = targetStream
+    }
+  }, [isRemotePrimary, remoteStream, localStreamState])
+
+  useEffect(() => {
+    if (!secondaryVideoRef.current) return
+    const targetStream = isRemotePrimary ? localStreamState : remoteStream
+    if (secondaryVideoRef.current.srcObject !== targetStream) {
+      secondaryVideoRef.current.srcObject = targetStream
+    }
+  }, [isRemotePrimary, localStreamState, remoteStream])
+
+  useEffect(() => {
+    if (callingVideoRef.current && callingVideoRef.current.srcObject !== localStreamState) {
+      callingVideoRef.current.srcObject = localStreamState
+    }
+  }, [localStreamState])
+
+  useEffect(() => {
+    if (hiddenVideoRef.current && hiddenVideoRef.current.srcObject !== remoteStream) {
+      hiddenVideoRef.current.srcObject = remoteStream
+    }
+  }, [remoteStream])
 
   const handleLocalEndCall = () => {
     if (peerConnection.current) {
@@ -63,21 +150,6 @@ const ChatTopBar = () => {
     }
     checkCameras()
   }, [])
-
-  useEffect(() => {
-    if (callState !== 'active') {
-      setCallDuration('00:00')
-      return
-    }
-    const startTime = Date.now()
-    const timer = setInterval(() => {
-      const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000)
-      const mins = String(Math.floor(elapsedSeconds / 60)).padStart(2, '0')
-      const secs = String(elapsedSeconds % 60).padStart(2, '0')
-      setCallDuration(`${mins}:${secs}`)
-    }, 1000)
-    return () => clearInterval(timer)
-  }, [callState])
 
   const endCall = () => {
     // Notify the other peer
@@ -181,8 +253,10 @@ const ChatTopBar = () => {
 
     // This is the remote audio/video stream that fires when the remote track is added(starts arriving from the other person) to the connection.
     peerConnection.current.ontrack = (event) => {
-      remoteStreamState.current = event.streams[0]
-      setRemoteStream(event.streams[0])
+      if (event.streams && event.streams[0]) {
+        remoteStreamState.current = event.streams[0]
+        setRemoteStream(prev => (prev === event.streams[0] ? prev : event.streams[0]))
+      }
     }
 
     try {
@@ -329,9 +403,7 @@ const ChatTopBar = () => {
     <div className='thread-topbar w-full h-20 flex p-4 justify-between items-center border-b'>
       {/* Hidden video element to keep the remote stream active even when dialog is closed */}
       <video
-        ref={(el) => {
-          if (el && remoteStream) el.srcObject = remoteStream
-        }}
+        ref={setHiddenVideo}
         autoPlay
         playsInline
         className="hidden"
@@ -426,13 +498,11 @@ const ChatTopBar = () => {
                 {callState === 'active' ? (
                   <div className="absolute inset-0 w-full h-full bg-black">
                     <video
-                      ref={(el) => {
-                        if (el) el.srcObject = isRemotePrimary ? remoteStream : localStreamState
-                      }}
+                      ref={setPrimaryVideo}
                       autoPlay
                       playsInline
                       muted={!isRemotePrimary}
-                      className={`w-full h-full object-cover transition-all duration-300 ${(!isRemotePrimary && facingMode === 'user') ? '-scale-x-100' : ''}`}
+                      className={`w-full h-full object-cover ${(!isRemotePrimary && facingMode === 'user') ? '-scale-x-100' : ''}`}
                     />
                     {isRemotePrimary && !remoteStream && (
                       <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0b141a] text-white">
@@ -446,9 +516,7 @@ const ChatTopBar = () => {
                 ) : (
                   <div className="absolute inset-0 w-full h-full bg-black">
                     <video
-                      ref={(el) => {
-                        if (el && localStreamState) el.srcObject = localStreamState
-                      }}
+                      ref={setCallingVideo}
                       autoPlay
                       playsInline
                       muted
@@ -473,9 +541,7 @@ const ChatTopBar = () => {
                     className="absolute top-20 right-4 w-28 h-40 md:w-36 md:h-52 rounded-2xl overflow-hidden shadow-2xl border-2 border-white/30 cursor-pointer z-30 transition-transform active:scale-95 bg-black"
                   >
                     <video
-                      ref={(el) => {
-                        if (el) el.srcObject = isRemotePrimary ? localStreamState : remoteStream
-                      }}
+                      ref={setSecondaryVideo}
                       autoPlay
                       playsInline
                       muted={isRemotePrimary}
@@ -494,7 +560,7 @@ const ChatTopBar = () => {
                       {selectedUser?.name}
                     </h2>
                     <span className="text-xs text-white/80 drop-shadow">
-                      {callState === 'calling' ? 'Calling...' : callDuration}
+                      {callState === 'calling' ? 'Calling...' : <CallTimer isActive={callState === 'active'} />}
                     </span>
                   </div>
                   {hasMultipleCameras && (
@@ -568,7 +634,7 @@ const ChatTopBar = () => {
                     {selectedUser?.name}
                   </h1>
                   <span className="text-sm text-emerald-400 font-medium">
-                    {callState === 'calling' ? 'Calling...' : callDuration}
+                    {callState === 'calling' ? 'Calling...' : <CallTimer isActive={callState === 'active'} />}
                   </span>
                 </div>
 
