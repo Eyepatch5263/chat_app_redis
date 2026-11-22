@@ -1,5 +1,4 @@
 import { useSelectedUser } from '@/store/useSelectedUser'
-import { cn } from '@/lib/utils'
 import { Avatar, AvatarImage } from '@/components/ui/avatar'
 import { X, Phone, PhoneOff, Mic, MicOff, Video, VideoOff, RefreshCw, ArrowLeft } from 'lucide-react'
 import React, { useEffect, useRef, useState } from 'react'
@@ -81,9 +80,8 @@ const ChatTopBar = () => {
   useEffect(() => {
     if (!currentUser?.id) return
 
-    // Connect and join self room for signaling
-    socket.connect()
-    socket.emit('join-self', currentUser.id)
+    // Rejoin the user's private signaling room after every connection.
+    const joinSelf = () => socket.emit('join-self', currentUser.id)
 
     const handleSignal = async ({ from, signal, type }: any) => {
       if (type === 'offer') {
@@ -120,8 +118,12 @@ const ChatTopBar = () => {
       }
     }
 
+    socket.on('connect', joinSelf)
     socket.on('signal', handleSignal)
+    socket.connect()
+    if (socket.connected) joinSelf()
     return () => {
+      socket.off('connect', joinSelf)
       socket.off('signal', handleSignal)
     }
   }, [currentUser?.id])
@@ -320,43 +322,39 @@ const ChatTopBar = () => {
         className="hidden"
       />
 
-      <button className="mobile-back icon-button" aria-label="Back to conversations" onClick={() => setSelectedUser(null)}><ArrowLeft size={19}/></button>
+      <button type="button" className="mobile-back icon-button" aria-label="Back to conversations" onClick={() => setSelectedUser(null)}><ArrowLeft size={19}/></button>
       <div className='thread-heading'>
         <Avatar className='flex justify-center items-center h-10 w-10 shrink-0'>
           <AvatarImage src={selectedUser?.image} alt='user_image' className='w-10 h-10 object-cover rounded-full' />
         </Avatar>
-        <div><div className='thread-title'>{selectedUser?.name}</div><div className='thread-subtitle'>Conversation</div></div>
+        <div className="min-w-0"><div className='thread-title' title={selectedUser?.name || undefined}>{selectedUser?.name}</div><div className='thread-subtitle'>Conversation</div></div>
       </div>
 
       <div className='call-actions flex gap-4 items-center'>
-        <Video
-          onClick={() => initiateCall(true)}
-          className='text-muted-foreground cursor-pointer hover:text-green-500 transition-colors'
-          size={20}
-        />
-        <Phone
-          onClick={() => initiateCall(false)}
-          className='text-muted-foreground cursor-pointer hover:text-green-500 transition-colors'
-          size={20}
-        />
-        <X onClick={() => {
+        <button type="button" className="call-action-button" aria-label="Start video call" onClick={() => initiateCall(true)} disabled={callState !== 'idle'}>
+          <Video size={20} />
+        </button>
+        <button type="button" className="call-action-button" aria-label="Start audio call" onClick={() => initiateCall(false)} disabled={callState !== 'idle'}>
+          <Phone size={20} />
+        </button>
+        <button type="button" className="desktop-close icon-button" aria-label="Close conversation" onClick={() => {
           setSelectedUser(null)
           playSound()
-        }} className='text-muted-foreground cursor-pointer hover:text-primary' />
+        }}><X size={19} /></button>
       </div>
 
-      <Dialog open={callState === 'incoming'}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
+      <Dialog open={callState === 'incoming'} onOpenChange={(open) => { if (!open) endCall() }}>
+        <DialogContent className="call-dialog">
+          <DialogHeader className="call-dialog-header">
             <DialogTitle>Incoming {isVideoCall ? 'Video' : 'Voice'} Call</DialogTitle>
           </DialogHeader>
-          <div className="flex flex-col items-center justify-center p-4 gap-4">
+          <div className="call-stage flex flex-col items-center justify-center p-4 gap-4">
             <Avatar className="h-20 w-20">
               <AvatarImage src={selectedUser?.image} className="rounded-full" />
             </Avatar>
             <p className="text-lg font-semibold">{selectedUser?.name} is calling you...</p>
           </div>
-          <DialogFooter className="flex-row justify-center gap-4">
+          <DialogFooter className="call-controls flex-row justify-center gap-4">
             <Button variant="outline" onClick={endCall} className="bg-red-500 hover:bg-red-600 text-white border-none">
               <PhoneOff className="mr-2 h-4 w-4" /> Decline
             </Button>
@@ -367,15 +365,15 @@ const ChatTopBar = () => {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={callState === 'calling' || callState === 'active'}>
-        <DialogContent className={`${isVideoCall ? 'w-screen h-dvh sm:w-[95vw] sm:h-[95vh] max-w-none' : 'sm:max-w-md'} p-0 overflow-hidden flex flex-col`}>
-          <DialogHeader className={isVideoCall ? "p-4 border-b shrink-0" : ""}>
+      <Dialog open={callState === 'calling' || callState === 'active'} onOpenChange={(open) => { if (!open) endCall() }}>
+        <DialogContent className="call-dialog">
+          <DialogHeader className="call-dialog-header">
             <DialogTitle>{callState === 'calling' ? 'Calling...' : 'In Call'}</DialogTitle>
           </DialogHeader>
 
-          <div className={`flex flex-col items-center justify-center gap-4 w-full ${isVideoCall ? 'flex-1' : 'h-full'} p-4`}>
+          <div className="call-stage flex flex-col items-center justify-center gap-4 w-full p-4">
             {isVideoCall && callState === 'active' ? (
-              <div className="relative w-full h-full sm:aspect-video bg-black rounded-lg overflow-hidden group">
+              <div className="relative w-full h-full bg-black overflow-hidden group">
                 {/* Primary Video */}
                 <video
                   ref={(el) => {
@@ -388,9 +386,11 @@ const ChatTopBar = () => {
                 />
 
                 {/* Secondary (PIP) Video */}
-                <div
+                <button
+                  type="button"
+                  aria-label={`Switch main video to ${isRemotePrimary ? 'your camera' : selectedUser?.name || 'the other participant'}`}
                   onClick={() => setIsRemotePrimary(!isRemotePrimary)}
-                  className="absolute bottom-4 left-4 w-32 md:w-48 aspect-video bg-muted rounded-md border-2 border-white shadow-xl cursor-pointer overflow-hidden transition-all hover:scale-105 z-10"
+                  className="absolute bottom-4 left-4 w-32 md:w-48 aspect-video p-0 border-2 border-white bg-muted rounded-md shadow-xl cursor-pointer overflow-hidden transition-all hover:scale-105 z-10"
                 >
                   <video
                     ref={(el) => {
@@ -404,14 +404,14 @@ const ChatTopBar = () => {
                   <div className="absolute bottom-1 left-1 bg-black/40 px-1 rounded text-[10px] text-white">
                     {isRemotePrimary ? 'You' : (selectedUser?.name?.split(' ')[0] || selectedUser?.name)}
                   </div>
-                </div>
+                </button>
 
                 <div className="absolute top-4 left-4 bg-black/50 px-2 py-1 rounded text-xs text-white">
                   {isRemotePrimary ? (selectedUser?.name?.split(' ')[0] || selectedUser?.name) : 'You'}
                 </div>
               </div>
             ) : isVideoCall && callState === 'calling' ? (
-              <div className="w-full aspect-video bg-black rounded-lg overflow-hidden relative">
+              <div className="relative h-full w-full bg-black overflow-hidden">
                 <video
                   ref={(el) => {
                     if (el && localStreamState) el.srcObject = localStreamState
@@ -439,28 +439,21 @@ const ChatTopBar = () => {
             )}
           </div>
 
-          <DialogFooter className={cn(
-            "flex-col sm:flex-row items-center sm:justify-center gap-2 sm:gap-4",
-            isVideoCall && callState === 'active'
-              ? "absolute bottom-4 right-4 sm:bottom-8 sm:right-8 bg-black/60 backdrop-blur-lg p-2 sm:p-4 rounded-full sm:rounded-3xl border border-white/20 shadow-2xl z-20"
-              : isVideoCall
-                ? "flex-row p-4 border-t shrink-0 relative z-20"
-                : "flex-row p-4 border-t"
-          )}>
-            <Button variant="ghost" onClick={toggleMute} className="rounded-full h-10 w-10 sm:h-12 sm:w-12 p-0 hover:bg-white/20 text-white">
+          <DialogFooter className="call-controls flex-row items-center justify-center gap-3 sm:gap-4">
+            <Button type="button" variant="ghost" aria-label={isMuted ? 'Unmute microphone' : 'Mute microphone'} aria-pressed={isMuted} onClick={toggleMute} className="rounded-full h-12 w-12 sm:h-14 sm:w-14 p-0 hover:bg-white/20 text-white">
               {isMuted ? <MicOff className="h-5 w-5 sm:h-6 sm:w-6 text-red-500" /> : <Mic className="h-5 w-5 sm:h-6 sm:w-6" />}
             </Button>
             {isVideoCall && (
-              <Button variant="ghost" onClick={toggleCamera} className="rounded-full h-10 w-10 sm:h-12 sm:w-12 p-0 hover:bg-white/20 text-white">
+              <Button type="button" variant="ghost" aria-label={isCameraOff ? 'Turn camera on' : 'Turn camera off'} aria-pressed={isCameraOff} onClick={toggleCamera} className="rounded-full h-12 w-12 sm:h-14 sm:w-14 p-0 hover:bg-white/20 text-white">
                 {isCameraOff ? <VideoOff className="h-5 w-5 sm:h-6 sm:w-6 text-red-500" /> : <Video className="h-5 w-5 sm:h-6 sm:w-6" />}
               </Button>
             )}
             {isVideoCall && hasMultipleCameras && (
-              <Button variant="ghost" onClick={switchCamera} className="rounded-full h-10 w-10 sm:h-12 sm:w-12 p-0 hover:bg-white/20 text-white">
+              <Button type="button" variant="ghost" aria-label="Switch camera" onClick={switchCamera} className="rounded-full h-12 w-12 sm:h-14 sm:w-14 p-0 hover:bg-white/20 text-white">
                 <RefreshCw className="h-5 w-5 sm:h-6 sm:w-6" />
               </Button>
             )}
-            <Button onClick={endCall} className="rounded-full h-10 w-10 sm:h-12 sm:w-12 p-0 bg-red-500 hover:bg-red-600 text-white border-none shadow-lg">
+            <Button type="button" aria-label="End call" onClick={endCall} className="rounded-full h-12 w-12 sm:h-14 sm:w-14 p-0 bg-red-500 hover:bg-red-600 text-white border-none shadow-lg">
               <PhoneOff className="h-5 w-5 sm:h-6 sm:w-6" />
             </Button>
           </DialogFooter>

@@ -36,6 +36,12 @@ io.on('connection', (socket) => {
         console.log(`User ${socket.id} joined room: ${room}`);
     });
 
+    socket.on('leave', (room) => {
+        if (typeof room !== 'string') return;
+        socket.leave(room);
+        console.log(`User ${socket.id} left room: ${room}`);
+    });
+
     // For WebRTC: Let user join a room named after their userId so others can signal to them
     socket.on('join-self', (userId) => {
         socket.join(userId);

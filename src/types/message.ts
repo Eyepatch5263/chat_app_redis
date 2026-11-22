@@ -1,6 +1,9 @@
-export interface Message{
+export type MessageType = "text" | "image" | "video" | "pdf";
+
+export interface Message {
+	id: string;
 	senderId: string;
 	content: string;
-	messageType: "text" | "image"| "video";
-	timeStamp: Date;
+	messageType: MessageType;
+	timeStamp: number | string | Date;
 }

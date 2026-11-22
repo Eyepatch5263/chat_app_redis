@@ -41,7 +41,7 @@ UPSTASH_REDIS_REST_TOKEN=your_token
 
 # Cloudinary
 NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=your_cloud_name
-CLOUDINARY_API_KEY=your_key
+NEXT_PUBLIC_CLOUDINARY_API_KEY=your_key
 CLOUDINARY_API_SECRET=your_secret
 
 # Socket Server

@@ -1,6 +1,8 @@
 "use client"
+
 import React, { useEffect, useRef } from 'react'
 import { AnimatePresence, motion } from "framer-motion"
+import { FileText } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 import { Inria_Serif } from 'next/font/google'
@@ -9,8 +11,6 @@ import { useKindeBrowserClient } from '@kinde-oss/kinde-auth-nextjs'
 import { useQuery } from '@tanstack/react-query'
 import { getMessageAction } from '@/actions/message.actions'
 import MessageSkeleton from '../skeletons/MessageSkeleton'
-import { CldVideoPlayer } from 'next-cloudinary'
-import 'next-cloudinary/dist/cld-video-player.css';
 import { getReadableTime } from "@/lib/dateTime"
 
 const inria2 = Inria_Serif({
@@ -23,100 +23,84 @@ const MessageList = () => {
   const { selectedUser } = useSelectedUser()
   const messageContainerRef = useRef<HTMLDivElement>(null)
   const { user: currentUser, isLoading: isUserLoading } = useKindeBrowserClient()
-  if (currentUser?.picture?.includes("gravatar")) {
-    currentUser.picture = `https://avatar.iran.liara.run/public/boy?username=${currentUser?.given_name}`
-  }
-  const { data: messages, isLoading: isMessagesLoading } = useQuery({
+  const currentUserImage = currentUser?.picture && !currentUser.picture.includes("gravatar")
+    ? currentUser.picture
+    : undefined
+
+  const { data: messages = [], isLoading: isMessagesLoading } = useQuery({
     queryKey: ['messages', selectedUser?.id],
     queryFn: async () => {
-      if (selectedUser && currentUser) {
-        return await getMessageAction(selectedUser.id, currentUser.id)
-      }
+      if (!selectedUser || !currentUser) return []
+      return await getMessageAction(selectedUser.id, currentUser.id)
     },
-
-    enabled: !!selectedUser && !!currentUser && !isUserLoading
-    // by putting !! we can change an object to corresponding boolean value and we use enabled because useQuery runs immediately as soon as the component messageList is mounted so it ensures that until we do not get the values don't run
+    enabled: !!selectedUser && !!currentUser && !isUserLoading,
   })
 
-  //scroll to bottom of the message list after selecting any chat
   useEffect(() => {
-    if (messageContainerRef.current) {
-      messageContainerRef.current.scrollTo({
-        top: messageContainerRef.current.scrollHeight,
-        behavior: 'smooth'
-      })
-    }
+    messageContainerRef.current?.scrollTo({
+      top: messageContainerRef.current.scrollHeight,
+      behavior: 'smooth'
+    })
   }, [messages])
-
 
   return (
     <div ref={messageContainerRef} className='w-full overflow-y-auto overflow-x-hidden h-full flex flex-col'>
-      {/* This component ensures that an animation is applied when items are added to or removed from the list */}
-      <AnimatePresence>
-        {!isMessagesLoading && messages?.map((message, index) => (
-          <motion.div
-            key={index}
-            layout
-            initial={{ opacity: 0, scale: 1, y: 50, x: 0 }}
-            animate={{ opacity: 1, scale: 1, y: 0, x: 0 }}
-            exit={{ opacity: 0, scale: 1, y: 1, x: 0 }}
-            transition={{
-              opacity: { duration: 0.1 },
-              layout: {
-                ease: 'easeOut',
-                type: 'spring',
-                damping: 15,
-                bounce: 0.3,
-                duration: index * messages!.indexOf(message) * 0.05 + 0.2
-              }
-            }}
-            style={{
-              originX: 0.5,
-              originY: 0.5,
+      <AnimatePresence initial={false}>
+        {!isMessagesLoading && messages.map((message, index) => {
+          const isOwnMessage = message.senderId === currentUser?.id
+          const startsGroup = index === 0 || messages[index - 1]?.senderId !== message.senderId
+          const avatarImage = isOwnMessage ? currentUserImage : selectedUser?.image
+          const avatarFallback = isOwnMessage ? (currentUser?.given_name?.[0] || "M") : (selectedUser?.name?.[0] || "U")
 
-            }}
+          return (
+            <motion.div
+              key={message.id}
+              layout
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+              transition={{ opacity: { duration: 0.12 }, layout: { ease: 'easeOut', type: 'spring', damping: 18, bounce: 0.18 } }}
+              className={cn('flex w-full px-4 py-1', isOwnMessage ? 'justify-end' : 'justify-start')}
+            >
+              <div className="flex min-w-0 max-w-[90%] flex-col md:max-w-[78%] xl:max-w-[70%]">
+                <div className={cn('flex min-w-0 items-end gap-2', isOwnMessage && 'flex-row-reverse')}>
+                  {startsGroup ? (
+                    <Avatar className="h-9 w-9 shrink-0 rounded-full">
+                      <AvatarImage src={avatarImage || undefined} alt={isOwnMessage ? "Your profile picture" : `${selectedUser?.name || 'Contact'} profile picture`} className="h-full w-full rounded-full object-cover" />
+                      <AvatarFallback>{avatarFallback}</AvatarFallback>
+                    </Avatar>
+                  ) : (
+                    <div aria-hidden="true" className="h-9 w-9 shrink-0" />
+                  )}
 
-            className={cn("flex flex-col gap-2 p-4", message.senderId === currentUser?.id ? "items-end" : "items-start")}
-          >
-            <div className={cn("flex flex-col gap-1 max-w-[90%] md:max-w-[80%]", message.senderId === currentUser?.id ? "items-end" : "items-start")}>
-              <div className={cn("flex gap-3 items-end", message.senderId === currentUser?.id ? "flex-row-reverse" : "flex-row")}>
-                {/* Avatar (always first in JSX, position handled by flex-direction) */}
-                <Avatar className='flex justify-center items-center mb-5 h-10 w-10 shrink-0'>
-                  <AvatarImage
-                    src={message.senderId === currentUser?.id ? (currentUser?.picture || undefined) : (selectedUser?.image || undefined)}
-                    alt="avatar"
-                    className='rounded-full object-cover'
-                  />
-                  <AvatarFallback>
-                    {message.senderId === currentUser?.id ? (currentUser?.given_name?.[0] || "M") : (selectedUser?.name?.[0] || "U")}
-                  </AvatarFallback>
-                </Avatar>
-
-                {message.messageType === "text" ? (
-                  <span className={cn('bg-accent p-3 rounded-2xl shadow-sm whitespace-pre-wrap wrap-break-word font-medium mb-5', inria2.className)}>
-                    {message.content}
-                  </span>
-                ) : message.messageType === "image" ? (
-                  <img src={message.content} alt='message_image' className='rounded-2xl h-40 md:h-52 object-contain cursor-pointer bg-accent/50 max-w-full shadow-sm mb-5' />
-                ) : message.messageType === "video" ? (
-                  <div className='w-full max-w-[280px] md:max-w-xs rounded-2xl overflow-hidden shadow-sm mb-5 bg-black'>
-                    <video
-                      controls
-                      className='h-full w-full'
-                      src={message.content}
-                    />
+                  <div className="message-bubble min-w-0 max-w-full">
+                    {message.messageType === "text" ? (
+                      <div className={cn('max-w-full whitespace-pre-wrap break-words rounded-2xl bg-accent px-3 py-2 shadow-sm', inria2.className)}>
+                        {message.content}
+                      </div>
+                    ) : message.messageType === "image" ? (
+                      <img src={message.content} alt='Shared image' className='max-h-72 max-w-full rounded-2xl bg-accent/50 object-contain shadow-sm' />
+                    ) : message.messageType === "video" ? (
+                      <video controls playsInline preload="metadata" className='aspect-video h-auto max-h-72 w-full max-w-sm rounded-2xl bg-black shadow-sm' src={message.content} />
+                    ) : message.messageType === "pdf" ? (
+                      <div className="w-[min(68vw,420px)] max-w-full overflow-hidden rounded-2xl border bg-card shadow-sm">
+                        <iframe src={message.content} title="Shared PDF document" className="h-52 w-full border-0 bg-white" loading="lazy" />
+                        <a href={message.content} target="_blank" rel="noreferrer" className="flex items-center gap-2 border-t px-3 py-2 text-sm text-primary hover:underline">
+                          <FileText size={16} aria-hidden="true" />
+                          Open or download PDF
+                        </a>
+                      </div>
+                    ) : null}
                   </div>
-                ) : null}
+                </div>
+
+                <p className={cn('mt-1 text-[10px] text-muted-foreground', isOwnMessage ? 'mr-11 text-right' : 'ml-11 text-left')}>
+                  {getReadableTime(message.timeStamp)}
+                </p>
               </div>
-
-
-              {/* Timestamp outside the avatar-bubble row */}
-              <p className={cn('text-muted-foreground text-[10px] mt-[-18px]', message.senderId === currentUser?.id ? "mr-12" : "ml-12")}>
-                {getReadableTime(message.timeStamp)}
-              </p>
-            </div>
-          </motion.div>
-        ))}
+            </motion.div>
+          )
+        })}
 
         {isMessagesLoading && (
           <div key="loading-skeletons">
@@ -127,7 +111,6 @@ const MessageList = () => {
             <MessageSkeleton />
           </div>
         )}
-
       </AnimatePresence>
     </div>
   )
