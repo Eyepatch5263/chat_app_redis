@@ -1,32 +1,13 @@
 "use client"
-import { Button } from '@/components/ui/button'
-import { Inria_Sans } from 'next/font/google'
 import React, { useState } from 'react'
-import { RegisterLink, LoginLink } from "@kinde-oss/kinde-auth-nextjs/components";
+import { RegisterLink, LoginLink } from "@kinde-oss/kinde-auth-nextjs/components"
+import { ArrowUpRight } from 'lucide-react'
 
-
-const inria2 = Inria_Sans({
-    display: 'swap',
-    subsets: ['latin'],
-    weight: ["300", "400", "700"]
-})
 const AuthButtons = () => {
-    const [isLoading, setIsLoading] = useState(false)
-    return (
-        <div className='flex gap-3 mt-20 md:flex-row flex-col relative z-50'>
-            <Button asChild disabled={isLoading} className={"w-full text-lg font-medium py-5 rounded-full " + (inria2.className)} variant={"outline"}>
-                <RegisterLink onClick={() => setIsLoading(true)}>
-                    Sign Up
-                </RegisterLink>
-            </Button>
-            <Button asChild disabled={isLoading} className={"w-full text-lg font-medium py-5 rounded-full " + (inria2.className)} variant={"secondary"}>
-                <LoginLink onClick={() => setIsLoading(true)}>
-                    Sign In
-                </LoginLink>
-            </Button>
-
-        </div>
-    )
+  const [isLoading, setIsLoading] = useState(false)
+  return <div className="auth-actions">
+    <RegisterLink className={`auth-primary ${isLoading ? 'is-loading' : ''}`} onClick={() => setIsLoading(true)} aria-disabled={isLoading}>Create an account <ArrowUpRight size={17}/></RegisterLink>
+    <LoginLink className="auth-secondary" onClick={() => setIsLoading(true)}>I already have an account</LoginLink>
+  </div>
 }
-
 export default AuthButtons

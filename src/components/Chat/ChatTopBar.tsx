@@ -1,7 +1,7 @@
 import { useSelectedUser } from '@/store/useSelectedUser'
 import { cn } from '@/lib/utils'
 import { Avatar, AvatarImage } from '@/components/ui/avatar'
-import { X, Phone, PhoneOff, Mic, MicOff, Video, VideoOff, RefreshCw } from 'lucide-react'
+import { X, Phone, PhoneOff, Mic, MicOff, Video, VideoOff, RefreshCw, ArrowLeft } from 'lucide-react'
 import React, { useEffect, useRef, useState } from 'react'
 import useSound from 'use-sound'
 import { useKindeBrowserClient } from '@kinde-oss/kinde-auth-nextjs'
@@ -309,7 +309,7 @@ const ChatTopBar = () => {
   }
 
   return (
-    <div className='w-full h-20 flex p-4 justify-between items-center border-b'>
+    <div className='thread-topbar w-full h-20 flex p-4 justify-between items-center border-b'>
       {/* Hidden video element to keep the remote stream active even when dialog is closed */}
       <video
         ref={(el) => {
@@ -320,16 +320,15 @@ const ChatTopBar = () => {
         className="hidden"
       />
 
-      <div className='flex items-center gap-2'>
+      <button className="mobile-back icon-button" aria-label="Back to conversations" onClick={() => setSelectedUser(null)}><ArrowLeft size={19}/></button>
+      <div className='thread-heading'>
         <Avatar className='flex justify-center items-center h-10 w-10 shrink-0'>
           <AvatarImage src={selectedUser?.image} alt='user_image' className='w-10 h-10 object-cover rounded-full' />
         </Avatar>
-        <span className={'font-medium text-lg'}>
-          {selectedUser?.name}
-        </span>
+        <div><div className='thread-title'>{selectedUser?.name}</div><div className='thread-subtitle'>Conversation</div></div>
       </div>
 
-      <div className='flex gap-4 items-center'>
+      <div className='call-actions flex gap-4 items-center'>
         <Video
           onClick={() => initiateCall(true)}
           className='text-muted-foreground cursor-pointer hover:text-green-500 transition-colors'

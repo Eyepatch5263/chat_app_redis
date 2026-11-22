@@ -130,7 +130,7 @@ const ChatBottomBar = () => {
   }, [currentUser?.id, selectedUser?.id, queryClient, playNotificationSound, soundEnabled])
   return (
     <>
-      <div className='p-4 flex justify-between w-full items-center gap-2 '>
+      <div className='message-composer flex justify-between w-full items-center gap-2 '>
         {!message.trim() && (
           <CldUploadWidget
             key="image-upload"

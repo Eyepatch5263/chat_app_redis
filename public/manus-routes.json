@@ -1,0 +1,1 @@
+{"routes":[{"path":"/","title":"Chatie inbox"},{"path":"/auth","title":"Sign in to Chatie"},{"path":"/auth/callback","title":"Authentication callback"}]}

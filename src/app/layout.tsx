@@ -15,8 +15,8 @@ const inria = Inria_Serif({
   weight: ["300", "400", "700"]
 })
 export const metadata: Metadata = {
-  title: "Chatie",
-  description: "Chat Application",
+  title: "Chatie — conversations, considered",
+  description: "A quieter, more thoughtful space for everyday conversations.",
 };
 
 

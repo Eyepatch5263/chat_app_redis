@@ -2,21 +2,8 @@
 import { useEffect } from 'react'
 import { checkAuthStatus } from '@/actions/auth.actions'
 import { useQuery } from '@tanstack/react-query'
-import { LoaderPinwheel } from 'lucide-react'
-import { Inria_Sans, Inria_Serif } from 'next/font/google'
+import { LoaderPinwheel, MessageCircle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-
-
-const inria2 = Inria_Sans({
-    display: 'swap',
-    subsets: ['latin'],
-    weight: ["300", "400", "700"]
-})
-const inria = Inria_Serif({
-    display: 'swap',
-    subsets: ['latin'],
-    weight: ["300", "400", "700"]
-})
 
 const Page = () => {
     const router = useRouter()
@@ -30,15 +17,14 @@ const Page = () => {
         }
     }, [data, router])
     return (
-        <div className='mt-10 w-full flex justify-center'>
-            <div className='flex flex-col items-center gap-2'>
-                <LoaderPinwheel className='w-20 h-10 animate-spin text-muted-foreground' />
-                <h3 className={'text-xl font-bold ' + (inria2.className)}>
-                    Redirecting...
-                </h3>
-                <p className={inria.className}>Please Wait</p>
+        <main className="auth-progress" aria-busy="true">
+            <div className="auth-progress-card">
+                <span className="auth-progress-mark"><MessageCircle size={20}/></span>
+                <LoaderPinwheel className="auth-progress-spinner" size={20} />
+                <h1 className="auth-progress-title">One moment.</h1>
+                <p className="auth-progress-copy">Taking you back to your conversations.</p>
             </div>
-        </div>
+        </main>
     )
 }
 
