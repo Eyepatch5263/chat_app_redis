@@ -259,11 +259,11 @@ const ChatBottomBar = () => {
             </div>
           </motion.div>
           {message.trim() ? (
-            <Button key='send-button' type="button" onClick={handleSendMessage} disabled={!selectedUser?.id || isPending} className='h-9 w-9 dark:bg-muted dark:text-muted dark:hover:bg-muted dark:hover:text-white shrink-0' variant="ghost" size="icon" aria-label="Send message">
+            <Button key='send-button' type="button" onClick={handleSendMessage} disabled={!selectedUser?.id || isPending} className='h-9 w-9 dark:bg-muted dark:text-muted-foreground dark:hover:bg-muted dark:hover:text-white shrink-0' variant="ghost" size="icon" aria-label="Send message">
               {isPending ? <Loader size={20} className='animate-spin' /> : <SendHorizonalIcon size={20} />}
             </Button>
           ) : (
-            <Button key='thumbs-button' type="button" disabled={!selectedUser?.id || isPending} className='h-9 w-9 dark:bg-muted dark:text-muted dark:hover:bg-muted dark:hover:text-white shrink-0' variant="ghost" size="icon" aria-label="Send a thumbs-up" onClick={() => {
+            <Button key='thumbs-button' type="button" disabled={!selectedUser?.id || isPending} className='h-9 w-9 dark:bg-muted dark:text-muted-foreground dark:hover:bg-muted dark:hover:text-white shrink-0' variant="ghost" size="icon" aria-label="Send a thumbs-up" onClick={() => {
               if (selectedUser?.id) sendMessage({ content: "👍🏻", messageType: "text", receiverId: selectedUser.id })
             }}>
               {isPending ? <Loader size={20} className='animate-spin' /> : <ThumbsUpIcon size={20} />}

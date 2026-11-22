@@ -5,7 +5,6 @@ import { AnimatePresence, motion } from "framer-motion"
 import { FileText } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
-import { Inria_Serif } from 'next/font/google'
 import { useSelectedUser } from '@/store/useSelectedUser'
 import { useKindeBrowserClient } from '@kinde-oss/kinde-auth-nextjs'
 import { useQuery } from '@tanstack/react-query'
@@ -14,12 +13,6 @@ import MessageSkeleton from '../skeletons/MessageSkeleton'
 import { getReadableTime } from "@/lib/dateTime"
 import { getPdfDownloadUrl } from '@/lib/cloudinary-media'
 import PdfPreview from './PdfPreview'
-
-const inria2 = Inria_Serif({
-  display: 'swap',
-  subsets: ['latin'],
-  weight: ["300", "400", "700"]
-})
 
 const MessageList = () => {
   const { selectedUser } = useSelectedUser()
@@ -77,7 +70,7 @@ const MessageList = () => {
 
                   <div className="message-bubble min-w-0 max-w-full">
                     {message.messageType === "text" ? (
-                      <div className={cn('max-w-full whitespace-pre-wrap break-words rounded-2xl bg-accent px-3 py-2 shadow-sm', inria2.className)}>
+                      <div className={cn('max-w-full whitespace-pre-wrap break-words rounded-2xl bg-accent px-3 py-2 text-accent-foreground shadow-sm')}>
                         {message.content}
                       </div>
                     ) : message.messageType === "image" ? (
