@@ -247,7 +247,7 @@ const ChatBottomBar = () => {
               }}
               value={message}
               autoComplete='off'
-              placeholder='Type Your Message'
+              placeholder='Message'
               rows={1}
               className='w-full border rounded-full items-center h-10 py-2 resize-none overflow-hidden bg-background min-h-0'
             />

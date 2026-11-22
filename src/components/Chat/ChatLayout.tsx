@@ -6,7 +6,6 @@ import { User } from '@/types/user'
 import { MessageCircle, ArrowUpRight } from 'lucide-react'
 
 const ChatLayout = ({ users }: { defaultLayout: number[] | undefined, users: User[] }) => {
-  console.log("users",users)
   const { selectedUser } = useSelectedUser()
   return <div className={`chat-app ${selectedUser ? 'thread-open' : ''}`}>
     <div className="inbox-pane"><Sidebar users={users} isCollapsed={false}/></div>
