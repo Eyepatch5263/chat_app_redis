@@ -5,14 +5,26 @@ const cors = require('cors');
 require('dotenv').config();
 
 const app = express();
-app.use(cors());
+
+const defaultOrigins = ["http://localhost:3000", "https://chat.pratyush.works"];
+const envOrigins = process.env.NEXT_SERVER_CLIENT_URL
+    ? process.env.NEXT_SERVER_CLIENT_URL.split(',').map(url => url.trim()).filter(Boolean)
+    : [];
+const allowedOrigins = Array.from(new Set([...defaultOrigins, ...envOrigins]));
+
+app.use(cors({
+    origin: allowedOrigins,
+    methods: ["GET", "POST"],
+    credentials: true
+}));
 app.use(express.json());
 
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: ["http://localhost:3000", "https://chat.pratyush.works"],
-        methods: ["GET", "POST"]
+        origin: allowedOrigins,
+        methods: ["GET", "POST"],
+        credentials: true
     }
 });
 

@@ -1,10 +1,9 @@
 import ChatLayout from "@/components/Chat/ChatLayout";
-import PreferencesTab from "@/components/PreferencesTab";
 import { redis } from "@/lib/db";
-import { cookies } from "next/headers";
 import { getKindeServerSession } from '@kinde-oss/kinde-auth-nextjs/server'
 import { redirect } from 'next/navigation'
 import { User } from "@/types/user";
+import { checkAuthStatus } from "@/actions/auth.actions";
 
 async function getUsers(): Promise<User[]> {
   const userKeys: string[] = []
@@ -37,6 +36,7 @@ export default async function Home() {
   if (!(await isAuthenticated())) {
     return redirect('/auth')
   }
+  await checkAuthStatus()
   const users = await getUsers()
   // const layout = cookies().get("resizable-panel-layout")
   const defaultLayout = undefined

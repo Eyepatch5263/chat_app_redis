@@ -14,12 +14,15 @@ export async function checkAuthStatus() {
     const existingUser = await redis.hgetall(userId)
     //sign up case 
     if (!existingUser || Object.keys(existingUser).length === 0) {
-        const imgIsNull = user.picture?.includes("gravatar")
-        const image = imgIsNull ? `https://avatar.iran.liara.run/public/boy?username=${user?.given_name}` : user.picture
+        const imgIsNull = !user.picture || user.picture.includes("gravatar")
+        const image = imgIsNull
+            ? `https://avatar.iran.liara.run/public/boy?username=${encodeURIComponent(user?.given_name || user.id)}`
+            : user.picture
+        const name = `${user.given_name || ""} ${user.family_name ?? ""}`.trim() || user.email || "User"
         await redis.hset(userId, {
             id: user.id,
-            name: `${user.given_name} ${user.family_name ?? ""}`.trim(),
-            email: user.email,
+            name: name,
+            email: user.email || "",
             image: image
         })
     }
