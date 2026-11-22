@@ -16,9 +16,9 @@ const MessageContainer = () => {
         return () => document.removeEventListener("keydown", handleEsc)
     }, [setSelectedUser])
     return (
-        <div className='flex flex-col justify-between w-full h-full'>
+        <div className='thread-container'>
             <ChatTopBar />
-            <div className='flex-1 overflow-hidden h-full flex flex-col'>
+            <div className='thread-content flex flex-col'>
                 <MessageList />
             </div>
             <ChatBottomBar />
