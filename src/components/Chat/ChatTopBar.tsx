@@ -8,6 +8,28 @@ import { socket } from '@/lib/socket'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 
+const callDialogStyle: React.CSSProperties = {
+  position: 'fixed',
+  inset: 0,
+  left: 0,
+  top: 0,
+  transform: 'none',
+  width: '100vw',
+  height: '100dvh',
+  maxWidth: 'none',
+  maxHeight: '100dvh',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 0,
+  padding: 0,
+  border: 0,
+  borderRadius: 0,
+  overflow: 'hidden',
+  backgroundColor: '#080b10',
+  color: '#fff',
+  boxShadow: 'none',
+}
+
 const ChatTopBar = () => {
   const { selectedUser, setSelectedUser } = useSelectedUser()
   const { user: currentUser } = useKindeBrowserClient()
@@ -344,7 +366,7 @@ const ChatTopBar = () => {
       </div>
 
       <Dialog open={callState === 'incoming'} onOpenChange={(open) => { if (!open) endCall() }}>
-        <DialogContent className="call-dialog">
+        <DialogContent className="call-dialog" style={callDialogStyle}>
           <DialogHeader className="call-dialog-header">
             <DialogTitle>Incoming {isVideoCall ? 'Video' : 'Voice'} Call</DialogTitle>
           </DialogHeader>
@@ -366,7 +388,7 @@ const ChatTopBar = () => {
       </Dialog>
 
       <Dialog open={callState === 'calling' || callState === 'active'} onOpenChange={(open) => { if (!open) endCall() }}>
-        <DialogContent className="call-dialog">
+        <DialogContent className="call-dialog" style={callDialogStyle}>
           <DialogHeader className="call-dialog-header">
             <DialogTitle>{callState === 'calling' ? 'Calling...' : 'In Call'}</DialogTitle>
           </DialogHeader>

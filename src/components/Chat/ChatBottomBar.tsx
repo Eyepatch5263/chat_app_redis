@@ -17,6 +17,7 @@ import { queryClient } from '../Providers/TanStackProvider'
 import { useKindeBrowserClient } from '@kinde-oss/kinde-auth-nextjs'
 import { socket } from "@/lib/socket"
 import { Message, MessageType } from '@/types/message'
+import PdfPreview from './PdfPreview'
 
 type MediaDraft = {
   url: string
@@ -89,11 +90,11 @@ const ChatBottomBar = () => {
     })
   }
 
-  const queueUploadedMedia = (result: { info?: string | CloudinaryUploadWidgetInfo }, resourceType: MediaDraft['resourceType']) => {
+  const queueUploadedMedia = (result: { info?: string | CloudinaryUploadWidgetInfo }, resourceType: MediaDraft['resourceType'], messageTypeOverride?: MediaDraft['messageType']) => {
     if (!result.info || typeof result.info === 'string') return
     const info = result.info as CloudinaryUploadWidgetInfo
     if (!info.secure_url || !info.public_id) return
-    const messageType: MediaDraft['messageType'] = resourceType === 'raw' ? 'pdf' : resourceType
+    const messageType: MediaDraft['messageType'] = messageTypeOverride ?? (resourceType === 'raw' ? 'pdf' : resourceType)
     setMediaDraft({
       url: info.secure_url,
       publicId: info.public_id,
@@ -213,10 +214,10 @@ const ChatBottomBar = () => {
             <CldUploadWidget
               key="pdf-upload"
               onSuccess={(result, { widget }) => {
-                queueUploadedMedia(result, 'raw')
+                queueUploadedMedia(result, 'image', 'pdf')
                 widget.close()
               }}
-              options={uploadOptions('raw', ['pdf'])}
+              options={uploadOptions('image', ['pdf'])}
               signatureEndpoint="/api/sign-cloudinary-params">
               {({ open }) => (
                 <Button type="button" variant="ghost" size="icon" className="composer-upload-button" aria-label="Upload a PDF" onClick={() => open()}>
@@ -279,7 +280,7 @@ const ChatBottomBar = () => {
           <div className='flex justify-center items-center rounded-lg relative h-[min(60dvh,440px)] min-h-56 w-full mx-auto overflow-hidden bg-muted/30'>
             {mediaDraft?.messageType === 'image' && <img src={mediaDraft.url} alt="Image upload preview" className="max-h-full max-w-full object-contain" />}
             {mediaDraft?.messageType === 'video' && <video src={mediaDraft.url} controls playsInline className="h-full w-full object-contain" />}
-            {mediaDraft?.messageType === 'pdf' && <iframe src={mediaDraft.url} title={`PDF preview: ${mediaDraft.fileName}`} className="h-full w-full border-0 bg-white" />}
+            {mediaDraft?.messageType === 'pdf' && <PdfPreview src={mediaDraft.url} title={`PDF preview: ${mediaDraft.fileName}`} className="h-full w-full border-0 bg-white" />}
           </div>
           {mediaDraft?.messageType === 'pdf' && <p className="truncate text-sm text-muted-foreground">{mediaDraft.fileName}</p>}
           <DialogFooter className="flex-row gap-3 sm:justify-end">

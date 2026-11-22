@@ -12,6 +12,8 @@ import { useQuery } from '@tanstack/react-query'
 import { getMessageAction } from '@/actions/message.actions'
 import MessageSkeleton from '../skeletons/MessageSkeleton'
 import { getReadableTime } from "@/lib/dateTime"
+import { getPdfDownloadUrl } from '@/lib/cloudinary-media'
+import PdfPreview from './PdfPreview'
 
 const inria2 = Inria_Serif({
   display: 'swap',
@@ -84,10 +86,10 @@ const MessageList = () => {
                       <video controls playsInline preload="metadata" className='aspect-video h-auto max-h-72 w-full max-w-sm rounded-2xl bg-black shadow-sm' src={message.content} />
                     ) : message.messageType === "pdf" ? (
                       <div className="w-[min(68vw,420px)] max-w-full overflow-hidden rounded-2xl border bg-card shadow-sm">
-                        <iframe src={message.content} title="Shared PDF document" className="h-52 w-full border-0 bg-white" loading="lazy" />
-                        <a href={message.content} target="_blank" rel="noreferrer" className="flex items-center gap-2 border-t px-3 py-2 text-sm text-primary hover:underline">
+                        <PdfPreview src={message.content} title="Shared PDF document" className="h-52 w-full border-0 bg-white" />
+                        <a href={getPdfDownloadUrl(message.content)} className="flex items-center gap-2 border-t px-3 py-2 text-sm text-primary hover:underline">
                           <FileText size={16} aria-hidden="true" />
-                          Open or download PDF
+                          Download PDF
                         </a>
                       </div>
                     ) : null}
