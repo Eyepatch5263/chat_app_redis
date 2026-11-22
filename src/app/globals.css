@@ -30,6 +30,9 @@
 @media(min-width:761px) and (max-width:960px){.chat-app{grid-template-columns:minmax(270px,320px) minmax(0,1fr)}.thread-topbar{gap:10px}.call-actions{gap:6px!important}}
 .message-composer button.composer-upload-button{height:38px!important;width:38px!important;flex:none!important;border:1px solid var(--line)!important;background:transparent!important;color:var(--ink-soft)!important;border-radius:11px!important}.message-composer button.composer-upload-button:hover{background:var(--coral-pale)!important;color:var(--coral)!important}.message-composer button.composer-upload-button svg{color:currentColor!important}
 
+.pt-safe{padding-top:max(1rem,env(safe-area-inset-top))}
+.pb-safe{padding-bottom:max(1.5rem,env(safe-area-inset-bottom))}
+
 /* Preserve the original light palette while keeping non-white surfaces legible in dark mode. */
 html { color-scheme: light; }
 html.dark { color-scheme: dark; }

@@ -1,34 +1,11 @@
 import { useSelectedUser } from '@/store/useSelectedUser'
 import { Avatar, AvatarImage } from '@/components/ui/avatar'
-import { X, Phone, PhoneOff, Mic, MicOff, Video, VideoOff, RefreshCw, ArrowLeft } from 'lucide-react'
+import { X, Phone, PhoneOff, Mic, MicOff, Video, VideoOff, RefreshCw, ArrowLeft, Lock } from 'lucide-react'
 import React, { useEffect, useRef, useState } from 'react'
 import useSound from 'use-sound'
 import { useKindeBrowserClient } from '@kinde-oss/kinde-auth-nextjs'
 import { socket } from '@/lib/socket'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-
-const callDialogStyle: React.CSSProperties = {
-  position: 'fixed',
-  inset: 0,
-  left: 0,
-  top: 0,
-  transform: 'none',
-  width: '100vw',
-  height: '100dvh',
-  maxWidth: 'none',
-  maxHeight: '100dvh',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 0,
-  padding: 0,
-  border: 0,
-  borderRadius: 0,
-  overflow: 'hidden',
-  backgroundColor: '#080b10',
-  color: '#fff',
-  boxShadow: 'none',
-}
+import * as DialogPrimitive from "@radix-ui/react-dialog"
 
 const ChatTopBar = () => {
   const { selectedUser, setSelectedUser } = useSelectedUser()
@@ -36,6 +13,7 @@ const ChatTopBar = () => {
   const [playSound] = useSound('/sounds/mouse-click.mp3')
 
   const [callState, setCallState] = useState<'idle' | 'calling' | 'incoming' | 'active'>('idle')
+  const [callDuration, setCallDuration] = useState('00:00')
   const [isMuted, setIsMuted] = useState(false)
   const [isVideoCall, setIsVideoCall] = useState(false)
   const [isCameraOff, setIsCameraOff] = useState(false)
@@ -85,6 +63,21 @@ const ChatTopBar = () => {
     }
     checkCameras()
   }, [])
+
+  useEffect(() => {
+    if (callState !== 'active') {
+      setCallDuration('00:00')
+      return
+    }
+    const startTime = Date.now()
+    const timer = setInterval(() => {
+      const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000)
+      const mins = String(Math.floor(elapsedSeconds / 60)).padStart(2, '0')
+      const secs = String(elapsedSeconds % 60).padStart(2, '0')
+      setCallDuration(`${mins}:${secs}`)
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [callState])
 
   const endCall = () => {
     // Notify the other peer
@@ -365,122 +358,260 @@ const ChatTopBar = () => {
         }}><X size={19} /></button>
       </div>
 
-      <Dialog open={callState === 'incoming'} onOpenChange={(open) => { if (!open) endCall() }}>
-        <DialogContent className="call-dialog" style={callDialogStyle}>
-          <DialogHeader className="call-dialog-header">
-            <DialogTitle>Incoming {isVideoCall ? 'Video' : 'Voice'} Call</DialogTitle>
-          </DialogHeader>
-          <div className="call-stage flex flex-col items-center justify-center p-4 gap-4">
-            <Avatar className="h-20 w-20">
-              <AvatarImage src={selectedUser?.image} className="rounded-full" />
-            </Avatar>
-            <p className="text-lg font-semibold">{selectedUser?.name} is calling you...</p>
-          </div>
-          <DialogFooter className="call-controls flex-row justify-center gap-4">
-            <Button variant="outline" onClick={endCall} className="bg-red-500 hover:bg-red-600 text-white border-none">
-              <PhoneOff className="mr-2 h-4 w-4" /> Decline
-            </Button>
-            <Button onClick={acceptCall} className="bg-green-500 hover:bg-green-600 text-white border-none">
-              <Phone className="mr-2 h-4 w-4" /> Accept
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DialogPrimitive.Root open={callState !== 'idle'} onOpenChange={(open) => { if (!open) endCall() }}>
+        <DialogPrimitive.Portal>
+          <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/95 backdrop-blur-sm" />
+          <DialogPrimitive.Content
+            className="fixed inset-0 z-50 w-screen h-[100dvh] max-w-none m-0 p-0 border-0 bg-[#0b141a] text-white flex flex-col justify-between overflow-hidden outline-none select-none"
+            style={{ width: '100vw', height: '100dvh', maxWidth: 'none', maxHeight: '100dvh' }}
+          >
+            <DialogPrimitive.Title className="sr-only">Call with {selectedUser?.name}</DialogPrimitive.Title>
+            <DialogPrimitive.Description className="sr-only">Active call screen</DialogPrimitive.Description>
 
-      <Dialog open={callState === 'calling' || callState === 'active'} onOpenChange={(open) => { if (!open) endCall() }}>
-        <DialogContent className="call-dialog" style={callDialogStyle}>
-          <DialogHeader className="call-dialog-header">
-            <DialogTitle>{callState === 'calling' ? 'Calling...' : 'In Call'}</DialogTitle>
-          </DialogHeader>
-
-          <div className="call-stage flex flex-col items-center justify-center gap-4 w-full p-4">
-            {isVideoCall && callState === 'active' ? (
-              <div className="relative w-full h-full bg-black overflow-hidden group">
-                {/* Primary Video */}
-                <video
-                  ref={(el) => {
-                    if (el) el.srcObject = isRemotePrimary ? remoteStream : localStreamState
-                  }}
-                  autoPlay
-                  playsInline
-                  muted={!isRemotePrimary}
-                  className={`w-full h-full object-cover transition-all duration-300 ${(!isRemotePrimary && facingMode === 'user') ? '-scale-x-100' : ''}`}
-                />
-
-                {/* Secondary (PIP) Video */}
-                <button
-                  type="button"
-                  aria-label={`Switch main video to ${isRemotePrimary ? 'your camera' : selectedUser?.name || 'the other participant'}`}
-                  onClick={() => setIsRemotePrimary(!isRemotePrimary)}
-                  className="absolute bottom-4 left-4 w-32 md:w-48 aspect-video p-0 border-2 border-white bg-muted rounded-md shadow-xl cursor-pointer overflow-hidden transition-all hover:scale-105 z-10"
-                >
-                  <video
-                    ref={(el) => {
-                      if (el) el.srcObject = isRemotePrimary ? localStreamState : remoteStream
-                    }}
-                    autoPlay
-                    playsInline
-                    muted={isRemotePrimary}
-                    className={`w-full h-full object-cover ${(isRemotePrimary && facingMode === 'user') ? '-scale-x-100' : ''}`}
-                  />
-                  <div className="absolute bottom-1 left-1 bg-black/40 px-1 rounded text-[10px] text-white">
-                    {isRemotePrimary ? 'You' : (selectedUser?.name?.split(' ')[0] || selectedUser?.name)}
+            {/* INCOMING CALL SCREEN */}
+            {callState === 'incoming' && (
+              <div className="relative w-full h-full flex flex-col justify-between items-center py-12 md:py-16 px-6 bg-gradient-to-b from-[#111b21] via-[#0b141a] to-[#111b21]">
+                <div className="flex flex-col items-center text-center gap-2 pt-safe pt-6">
+                  <div className="flex items-center gap-1.5 text-xs text-white/60">
+                    <Lock size={12} />
+                    <span>End-to-end encrypted</span>
                   </div>
-                </button>
-
-                <div className="absolute top-4 left-4 bg-black/50 px-2 py-1 rounded text-xs text-white">
-                  {isRemotePrimary ? (selectedUser?.name?.split(' ')[0] || selectedUser?.name) : 'You'}
+                  <div className="flex items-center gap-2 text-emerald-400 text-sm font-medium tracking-wide uppercase mt-1">
+                    {isVideoCall ? <Video size={16} /> : <Phone size={16} />}
+                    <span>Incoming {isVideoCall ? 'Video Call' : 'Voice Call'}</span>
+                  </div>
+                  <h1 className="text-3xl md:text-4xl font-bold text-white mt-2 tracking-tight">
+                    {selectedUser?.name}
+                  </h1>
                 </div>
-              </div>
-            ) : isVideoCall && callState === 'calling' ? (
-              <div className="relative h-full w-full bg-black overflow-hidden">
-                <video
-                  ref={(el) => {
-                    if (el && localStreamState) el.srcObject = localStreamState
-                  }}
-                  autoPlay
-                  playsInline
-                  muted
-                  className={`w-full h-full object-cover opacity-50 ${facingMode === 'user' ? '-scale-x-100' : ''}`}
-                />
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
-                  <Avatar className="h-20 w-20 mb-4 animate-pulse">
-                    <AvatarImage src={selectedUser?.image} className="rounded-full" />
+
+                <div className="relative my-auto flex items-center justify-center">
+                  <div className="absolute w-48 h-48 rounded-full bg-emerald-500/10 animate-ping pointer-events-none" />
+                  <div className="absolute w-40 h-40 rounded-full bg-emerald-500/20 animate-pulse pointer-events-none" />
+                  <Avatar className="w-32 h-32 md:w-40 md:h-40 rounded-full border-4 border-emerald-500/40 shadow-2xl z-10">
+                    <AvatarImage src={selectedUser?.image} className="object-cover" />
                   </Avatar>
-                  <p className="text-xl font-semibold">Calling {selectedUser?.name}...</p>
+                </div>
+
+                <div className="w-full max-w-xs flex items-center justify-around pb-safe pb-8">
+                  <button
+                    type="button"
+                    onClick={endCall}
+                    className="flex flex-col items-center gap-2 group transition-transform active:scale-95"
+                  >
+                    <div className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-700 flex items-center justify-center text-white shadow-xl">
+                      <PhoneOff size={28} />
+                    </div>
+                    <span className="text-xs text-white/80 font-medium">Decline</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={acceptCall}
+                    className="flex flex-col items-center gap-2 group transition-transform active:scale-95"
+                  >
+                    <div className="w-16 h-16 rounded-full bg-emerald-500 hover:bg-emerald-600 flex items-center justify-center text-white shadow-xl animate-bounce">
+                      <Phone size={28} />
+                    </div>
+                    <span className="text-xs text-emerald-400 font-medium">Accept</span>
+                  </button>
                 </div>
               </div>
-            ) : (
-              <>
-                <Avatar className={`h-24 w-24 ${callState === 'calling' ? 'animate-pulse' : ''}`}>
-                  <AvatarImage src={selectedUser?.image} className="rounded-full" />
-                </Avatar>
-                <p className="text-xl font-semibold">{selectedUser?.name}</p>
-                {callState === 'active' && <p className="text-green-500 animate-pulse">Connected</p>}
-              </>
             )}
-          </div>
 
-          <DialogFooter className="call-controls flex-row items-center justify-center gap-3 sm:gap-4">
-            <Button type="button" variant="ghost" aria-label={isMuted ? 'Unmute microphone' : 'Mute microphone'} aria-pressed={isMuted} onClick={toggleMute} className="rounded-full h-12 w-12 sm:h-14 sm:w-14 p-0 hover:bg-white/20 text-white">
-              {isMuted ? <MicOff className="h-5 w-5 sm:h-6 sm:w-6 text-red-500" /> : <Mic className="h-5 w-5 sm:h-6 sm:w-6" />}
-            </Button>
-            {isVideoCall && (
-              <Button type="button" variant="ghost" aria-label={isCameraOff ? 'Turn camera on' : 'Turn camera off'} aria-pressed={isCameraOff} onClick={toggleCamera} className="rounded-full h-12 w-12 sm:h-14 sm:w-14 p-0 hover:bg-white/20 text-white">
-                {isCameraOff ? <VideoOff className="h-5 w-5 sm:h-6 sm:w-6 text-red-500" /> : <Video className="h-5 w-5 sm:h-6 sm:w-6" />}
-              </Button>
+            {/* VIDEO CALL SCREEN (CALLING OR ACTIVE) */}
+            {isVideoCall && (callState === 'calling' || callState === 'active') && (
+              <div className="relative w-full h-full bg-black overflow-hidden flex flex-col justify-between">
+                {/* Main Fullscreen Video */}
+                {callState === 'active' ? (
+                  <div className="absolute inset-0 w-full h-full bg-black">
+                    <video
+                      ref={(el) => {
+                        if (el) el.srcObject = isRemotePrimary ? remoteStream : localStreamState
+                      }}
+                      autoPlay
+                      playsInline
+                      muted={!isRemotePrimary}
+                      className={`w-full h-full object-cover transition-all duration-300 ${(!isRemotePrimary && facingMode === 'user') ? '-scale-x-100' : ''}`}
+                    />
+                    {isRemotePrimary && !remoteStream && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0b141a] text-white">
+                        <Avatar className="w-28 h-28 mb-4 border-2 border-white/20 animate-pulse">
+                          <AvatarImage src={selectedUser?.image} className="object-cover" />
+                        </Avatar>
+                        <p className="text-base text-white/80">Connecting video...</p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="absolute inset-0 w-full h-full bg-black">
+                    <video
+                      ref={(el) => {
+                        if (el && localStreamState) el.srcObject = localStreamState
+                      }}
+                      autoPlay
+                      playsInline
+                      muted
+                      className={`w-full h-full object-cover opacity-60 ${facingMode === 'user' ? '-scale-x-100' : ''}`}
+                    />
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
+                      <Avatar className="w-28 h-28 mb-4 border-2 border-white/20 shadow-2xl animate-pulse">
+                        <AvatarImage src={selectedUser?.image} className="object-cover" />
+                      </Avatar>
+                      <h2 className="text-2xl font-bold text-white drop-shadow">{selectedUser?.name}</h2>
+                      <p className="text-sm text-white/80 mt-1 animate-pulse">Calling...</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Secondary PIP Self-Video */}
+                {callState === 'active' && (
+                  <button
+                    type="button"
+                    aria-label="Switch main video view"
+                    onClick={() => setIsRemotePrimary(!isRemotePrimary)}
+                    className="absolute top-20 right-4 w-28 h-40 md:w-36 md:h-52 rounded-2xl overflow-hidden shadow-2xl border-2 border-white/30 cursor-pointer z-30 transition-transform active:scale-95 bg-black"
+                  >
+                    <video
+                      ref={(el) => {
+                        if (el) el.srcObject = isRemotePrimary ? localStreamState : remoteStream
+                      }}
+                      autoPlay
+                      playsInline
+                      muted={isRemotePrimary}
+                      className={`w-full h-full object-cover ${(isRemotePrimary && facingMode === 'user') ? '-scale-x-100' : ''}`}
+                    />
+                    <div className="absolute bottom-1 left-2 bg-black/60 px-1.5 py-0.5 rounded text-[10px] text-white/90">
+                      {isRemotePrimary ? 'You' : (selectedUser?.name?.split(' ')[0] || 'Peer')}
+                    </div>
+                  </button>
+                )}
+
+                {/* Top Overlay Bar */}
+                <div className="relative z-30 pt-safe px-5 pt-4 pb-12 bg-gradient-to-b from-black/80 via-black/40 to-transparent flex items-center justify-between pointer-events-auto">
+                  <div className="flex flex-col">
+                    <h2 className="font-semibold text-lg md:text-xl text-white drop-shadow">
+                      {selectedUser?.name}
+                    </h2>
+                    <span className="text-xs text-white/80 drop-shadow">
+                      {callState === 'calling' ? 'Calling...' : callDuration}
+                    </span>
+                  </div>
+                  {hasMultipleCameras && (
+                    <button
+                      type="button"
+                      onClick={switchCamera}
+                      className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/20 flex items-center justify-center text-white hover:bg-black/60 active:scale-95 transition-all"
+                      title="Flip camera"
+                    >
+                      <RefreshCw size={18} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Bottom WhatsApp-style Floating Dock */}
+                <div className="relative z-30 pb-safe pb-8 px-4 flex justify-center pointer-events-auto">
+                  <div className="bg-[#1f2c34]/90 backdrop-blur-xl border border-white/10 rounded-full px-5 py-3 flex items-center gap-4 md:gap-6 shadow-2xl">
+                    <button
+                      type="button"
+                      onClick={switchCamera}
+                      className="w-12 h-12 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center text-white transition-all active:scale-95"
+                      title="Switch camera"
+                    >
+                      <RefreshCw size={20} />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={toggleCamera}
+                      className={`w-12 h-12 rounded-full flex items-center justify-center transition-all active:scale-95 ${
+                        isCameraOff ? 'bg-red-500 text-white' : 'bg-white/15 hover:bg-white/25 text-white'
+                      }`}
+                      title={isCameraOff ? 'Turn camera on' : 'Turn camera off'}
+                    >
+                      {isCameraOff ? <VideoOff size={20} /> : <Video size={20} />}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={toggleMute}
+                      className={`w-12 h-12 rounded-full flex items-center justify-center transition-all active:scale-95 ${
+                        isMuted ? 'bg-red-500 text-white' : 'bg-white/15 hover:bg-white/25 text-white'
+                      }`}
+                      title={isMuted ? 'Unmute microphone' : 'Mute microphone'}
+                    >
+                      {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={endCall}
+                      className="w-14 h-14 rounded-full bg-red-600 hover:bg-red-700 flex items-center justify-center text-white shadow-xl active:scale-95 transition-transform"
+                      title="End call"
+                    >
+                      <PhoneOff size={24} />
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
-            {isVideoCall && hasMultipleCameras && (
-              <Button type="button" variant="ghost" aria-label="Switch camera" onClick={switchCamera} className="rounded-full h-12 w-12 sm:h-14 sm:w-14 p-0 hover:bg-white/20 text-white">
-                <RefreshCw className="h-5 w-5 sm:h-6 sm:w-6" />
-              </Button>
+
+            {/* AUDIO / VOICE CALL SCREEN (CALLING OR ACTIVE) */}
+            {!isVideoCall && (callState === 'calling' || callState === 'active') && (
+              <div className="relative w-full h-full flex flex-col justify-between items-center py-12 md:py-16 px-6 bg-gradient-to-b from-[#111b21] via-[#0b141a] to-[#111b21]">
+                <div className="flex flex-col items-center text-center gap-1.5 pt-safe pt-6">
+                  <div className="flex items-center gap-1 text-xs text-white/60 mb-2">
+                    <Lock size={12} />
+                    <span>End-to-end encrypted</span>
+                  </div>
+                  <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
+                    {selectedUser?.name}
+                  </h1>
+                  <span className="text-sm text-emerald-400 font-medium">
+                    {callState === 'calling' ? 'Calling...' : callDuration}
+                  </span>
+                </div>
+
+                <div className="relative my-auto flex items-center justify-center">
+                  {callState === 'calling' && (
+                    <>
+                      <div className="absolute w-48 h-48 rounded-full bg-white/5 animate-ping pointer-events-none" />
+                      <div className="absolute w-40 h-40 rounded-full bg-white/10 animate-pulse pointer-events-none" />
+                    </>
+                  )}
+                  <Avatar className="w-36 h-36 md:w-44 md:h-44 rounded-full border-4 border-white/10 shadow-2xl ring-8 ring-white/5">
+                    <AvatarImage src={selectedUser?.image} className="object-cover" />
+                  </Avatar>
+                </div>
+
+                <div className="w-full max-w-xs pb-safe pb-8 flex justify-center">
+                  <div className="bg-[#1f2c34]/90 backdrop-blur-xl border border-white/10 rounded-full px-6 py-4 flex items-center gap-6 shadow-2xl">
+                    <button
+                      type="button"
+                      onClick={toggleMute}
+                      className={`w-14 h-14 rounded-full flex items-center justify-center transition-all active:scale-95 ${
+                        isMuted ? 'bg-red-500 text-white' : 'bg-white/15 hover:bg-white/25 text-white'
+                      }`}
+                      title={isMuted ? 'Unmute microphone' : 'Mute microphone'}
+                    >
+                      {isMuted ? <MicOff size={24} /> : <Mic size={24} />}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={endCall}
+                      className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-700 flex items-center justify-center text-white shadow-xl active:scale-95 transition-transform"
+                      title="End call"
+                    >
+                      <PhoneOff size={28} />
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
-            <Button type="button" aria-label="End call" onClick={endCall} className="rounded-full h-12 w-12 sm:h-14 sm:w-14 p-0 bg-red-500 hover:bg-red-600 text-white border-none shadow-lg">
-              <PhoneOff className="h-5 w-5 sm:h-6 sm:w-6" />
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </DialogPrimitive.Content>
+        </DialogPrimitive.Portal>
+      </DialogPrimitive.Root>
     </div>
   )
 }
