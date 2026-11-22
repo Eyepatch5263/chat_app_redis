@@ -11,8 +11,8 @@ const inriaSans = Inria_Sans({
   variable: '--font-inria-sans',
 })
 export const metadata: Metadata = {
-  title: "Chatie — a little closer",
-  description: "A softer space for the conversations you share with your favorite person.",
+  title: "Chatie — conversations, considered",
+  description: "A quieter, more thoughtful space for everyday conversations.",
 };
 
 
