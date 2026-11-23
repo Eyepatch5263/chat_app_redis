@@ -15,13 +15,12 @@ function isValidToken(token: unknown): token is string {
 
 function hasValidAdminConfiguration() {
   const config = process.env.FCM_SERVICE_ACCOUNT_JSON
+
   if (!config) return false
   try {
-    const serviceAccount = JSON.parse(config) as {
-      project_id?: string
-      client_email?: string
-      private_key?: string
-    }
+    const serviceAccount = JSON.parse(
+      Buffer.from(config,"base64").toString("utf8")
+    )
     const expectedProjectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
     return Boolean(
       serviceAccount.project_id &&

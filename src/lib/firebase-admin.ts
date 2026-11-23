@@ -22,13 +22,9 @@ function getAdminMessaging() {
   if (!serviceAccountJson) return null
 
   try {
-    const serviceAccount = JSON.parse(serviceAccountJson) as {
-      project_id?: string
-      client_email?: string
-      private_key?: string
-    }
+    const serviceAccount = JSON.parse(Buffer.from(serviceAccountJson,"base64").toString("utf8"))
     const expectedProjectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
-    if (!serviceAccount.project_id || !serviceAccount.client_email || !serviceAccount.private_key) {
+    if (!serviceAccount) {
       console.error("FCM service account is missing required fields")
       return null
     }
@@ -39,11 +35,7 @@ function getAdminMessaging() {
 
     const app = getApps().find((candidate) => candidate.name === ADMIN_APP_NAME) ??
       initializeApp({
-        credential: cert({
-          projectId: serviceAccount.project_id,
-          clientEmail: serviceAccount.client_email,
-          privateKey: serviceAccount.private_key.replace(/\\n/g, "\n"),
-        }),
+        credential: cert(serviceAccount),
       }, ADMIN_APP_NAME)
 
     return getMessaging(app)
