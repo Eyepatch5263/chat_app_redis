@@ -118,7 +118,8 @@ const PreferencesTab = () => {
           if (registration) {
             await registration.showNotification(title, {
               body: data.body || "You have a new message",
-              icon: "/favicon.ico",
+              icon: "/chatie-notification.png",
+              badge: "/chatie-notification-badge.png",
               data: { link: data.link || "/" },
               tag: data.conversationId ? `chatie-${data.conversationId}` : undefined,
             })

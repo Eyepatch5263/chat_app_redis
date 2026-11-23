@@ -33,8 +33,8 @@ messaging.onBackgroundMessage((payload) => {
   const title = data.title || "New message on Chatie";
   const options = {
     body: data.body || "You have a new message",
-    icon: "/favicon.ico",
-    badge: "/favicon.ico",
+    icon: "/chatie-notification.png",
+    badge: "/chatie-notification-badge.png",
     data: { link: data.link || "/" },
     tag: data.conversationId ? "chatie-" + data.conversationId : undefined,
     renotify: true
