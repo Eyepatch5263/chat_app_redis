@@ -21,12 +21,12 @@ FIREBASE_STORAGE_BUCKET=<Firebase web app storageBucket>
 FIREBASE_MESSAGING_SENDER_ID=<Firebase web app messagingSenderId>
 FIREBASE_APP_ID=<Firebase web app appId>
 FIREBASE_VAPID_KEY=<Web Push certificates public key>
-FCM_SERVICE_ACCOUNT_JSON_BASE64=<base64 of the complete service-account JSON file>
+FCM_SERVICE_ACCOUNT_JSON=<base64 of the complete service-account JSON file>
 ```
 
-For `FCM_SERVICE_ACCOUNT_JSON_BASE64`, encode the **entire downloaded JSON file** as one base64 string. On Linux, `base64 -w 0 service-account.json` prints it on one line. On macOS, use `base64 < service-account.json | tr -d '\n'`. Put the resulting value in your environment manager; do not paste it into chat, screenshots, source control, or a `NEXT_PUBLIC_` variable.
+`FCM_SERVICE_ACCOUNT_JSON` accepts either the complete raw JSON document or the base64-encoded contents of that document. The recommended base64 value can stay under the existing `FCM_SERVICE_ACCOUNT_JSON` name; the parser automatically detects and decodes it. On Linux, create it with `base64 -w 0 service-account.json`. On macOS, use `base64 < service-account.json | tr -d '\n'`. As an optional alias, `FCM_SERVICE_ACCOUNT_JSON_BASE64` is also accepted.
 
-The app also accepts `FCM_SERVICE_ACCOUNT_JSON` containing valid JSON. If using a local `.env`, do not write an unquoted multi-line object after `FCM_SERVICE_ACCOUNT_JSON=`: dotenv reads only the first line, leaving a truncated `{` that cannot be parsed. Use the base64 variable above, or put the complete JSON on one line as a properly quoted env value. The parsed object must include `project_id`, `client_email`, and `private_key`; its project ID must match `FIREBASE_PROJECT_ID`.
+If using a local `.env`, do not write an unquoted multi-line object after `FCM_SERVICE_ACCOUNT_JSON=`: dotenv reads only the first line, leaving a truncated `{` that cannot be parsed. Use the base64 value under the same variable name, or put complete raw JSON on one line as a properly quoted env value. The decoded object must include `project_id`, `client_email`, and `private_key`; its project ID must match `FIREBASE_PROJECT_ID`.
 
 For backward compatibility, the public web-app settings and VAPID key may still use their `NEXT_PUBLIC_FIREBASE_*` names. Those Firebase client settings and the VAPID public key are not private credentials; the `NEXT_PUBLIC_` prefix does not make them secret. Never use that prefix for the service-account credential.
 
@@ -42,7 +42,7 @@ After successful opt-in, the signed-in user's token is stored in Upstash Redis. 
 
 ## Troubleshooting
 
-- **Firebase Admin credentials could not be parsed:** A multi-line unquoted `.env` value is truncated. Use `FCM_SERVICE_ACCOUNT_JSON_BASE64`, or a single-line JSON value.
+- **Firebase Admin credentials could not be parsed:** A multi-line unquoted `.env` value is truncated. Keep the variable name `FCM_SERVICE_ACCOUNT_JSON` and replace its value with base64 of the complete service-account JSON file, or use a single-line JSON value.
 - **Credentials are missing or have the wrong project:** Check the variable names above and ensure the service account and web app use the same Firebase project. Never print credential contents to logs.
 - **Permission prompt does not appear:** If site permission is already denied, re-enable it in browser settings. If already granted, no prompt is needed; Chatie should register the token. Test over HTTPS or localhost.
 - **No background notification:** Confirm `/firebase-messaging-sw.js` returns status 200 on the same origin and that the app's Firebase project and VAPID key match.

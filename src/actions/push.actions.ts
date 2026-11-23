@@ -23,9 +23,9 @@ export async function registerPushTokenAction(token: string) {
   const adminConfig = readFirebaseServiceAccount()
   if (!adminConfig.ok) {
     const message = adminConfig.reason === "missing"
-      ? "Firebase Admin credentials are not configured. Add FCM_SERVICE_ACCOUNT_JSON as valid JSON or FCM_SERVICE_ACCOUNT_JSON_BASE64."
+      ? "Firebase Admin credentials are not configured. Set FCM_SERVICE_ACCOUNT_JSON to the complete service-account JSON or its base64-encoded contents."
       : adminConfig.reason === "invalid-json"
-        ? "Firebase Admin credentials could not be parsed. Multiline unquoted JSON in .env is truncated; use a single-line JSON value or the base64 environment variable."
+        ? "Firebase Admin credentials could not be parsed. Set FCM_SERVICE_ACCOUNT_JSON to complete JSON or base64-encoded JSON; unquoted multiline JSON in .env is truncated."
         : "Firebase Admin credentials are missing required project_id, client_email, or private_key fields."
     return { success: false as const, message }
   }

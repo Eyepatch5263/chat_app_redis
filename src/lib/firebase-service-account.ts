@@ -44,13 +44,14 @@ export function readFirebaseServiceAccount(): FirebaseServiceAccountResult {
 
   let sawValidJson = false
   const candidates: string[] = []
-  if (json) candidates.push(json)
+  if (json) {
+    // Keep compatibility with deployments that already store base64 under
+    // FCM_SERVICE_ACCOUNT_JSON, while still accepting a direct JSON document.
+    candidates.push(json)
+    candidates.push(Buffer.from(json, "base64").toString("utf8"))
+  }
   if (base64) {
-    try {
-      candidates.push(Buffer.from(base64, "base64").toString("utf8"))
-    } catch {
-      // The standard JSON path can still succeed if an unused base64 value is invalid.
-    }
+    candidates.push(Buffer.from(base64, "base64").toString("utf8"))
   }
 
   for (const candidate of candidates) {
