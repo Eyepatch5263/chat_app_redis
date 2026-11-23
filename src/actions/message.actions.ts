@@ -3,6 +3,7 @@
 import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server"
 import { v2 as cloudinary } from "cloudinary"
 import { redis } from "@/lib/db"
+import { sendNewMessagePush } from "@/lib/firebase-admin"
 import { Message, MessageType } from "@/types/message"
 
 interface SendMessageArgs {
@@ -31,6 +32,24 @@ export async function sendMessageAction({ content, messageType, receiverId }: Se
   pipeline.hset(messageId, { senderId, timeStamp, content, messageType })
   pipeline.zadd(`${conversationId}:messages`, { score: timeStamp, member: messageId })
   await pipeline.exec()
+
+  if (senderId !== receiverId) {
+    const senderName = [user.given_name, user.family_name].filter(Boolean).join(" ") || user.email || "Chatie user"
+    let pushTimeout: ReturnType<typeof setTimeout> | undefined
+    try {
+      const pushResult = await Promise.race([
+        sendNewMessagePush({ receiverId, senderId, senderName, messageType, content, conversationId }),
+        new Promise<undefined>((resolve) => {
+          pushTimeout = setTimeout(() => resolve(undefined), 2500)
+        }),
+      ])
+      if (pushResult === undefined) console.warn("FCM push delivery exceeded the 2.5-second wait; continuing message send")
+    } catch (error) {
+      console.error("Push notification skipped after message persistence:", error instanceof Error ? error.message : "unknown error")
+    } finally {
+      if (pushTimeout) clearTimeout(pushTimeout)
+    }
+  }
 
   const room = [senderId, receiverId].sort().join('__')
   const socketServerUrl = process.env.NEXT_PUBLIC_SOCKET_SERVER_URL

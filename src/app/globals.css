@@ -75,3 +75,5 @@ html.dark { color-scheme: dark; }
   border-color: var(--line);
   background: var(--paper);
 }
+
+.push-status{margin:5px 3px 2px;color:var(--ink-soft);font-size:10px;line-height:1.4}.push-status-error{color:#b44940}.sound-option:disabled{opacity:.55;cursor:not-allowed}
