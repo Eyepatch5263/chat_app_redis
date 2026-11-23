@@ -1,44 +1,48 @@
 # Firebase Cloud Messaging setup
 
-Chatie's browser push notifications require Firebase web-app settings, a Web Push VAPID public key, and a Firebase Admin service-account credential. Push delivery remains inactive until all required settings are added to the server deployment environment. Do not commit secrets or place a service-account credential in a `NEXT_PUBLIC_` variable.
+Chatie browser push needs Firebase web-app settings, a Web Push VAPID public key, and a Firebase Admin service-account credential. The service account is private and must stay server-side. The browser only receives the public Firebase web configuration and VAPID key from `/api/firebase-config`; do not expose or commit the service-account JSON.
 
 ## 1. Configure Firebase
 
-1. Create or select a Firebase project and add a **Web app**. Copy its Firebase web configuration values.
-2. In Firebase Console, open **Project settings → Cloud Messaging** and generate a **Web Push certificates** key pair. Use its public key as the VAPID key.
-3. In **Project settings → Service accounts**, create/download a private service-account JSON key for the same project. Treat this file as a secret; never check it into Git.
-4. Enable Firebase Cloud Messaging for the project if prompted by the Console.
+1. Create or select a Firebase project and add a **Web app**. Copy its web configuration values.
+2. In Firebase Console, open **Project settings → Cloud Messaging → Web Push certificates** and generate/copy the public VAPID key.
+3. In **Project settings → Service accounts**, create/download a new private service-account JSON key for the same project. Keep the file private.
+4. Enable Firebase Cloud Messaging for the project if prompted.
 
 ## 2. Set deployment environment variables
 
-Set these variables in the hosting provider's environment configuration, then redeploy the app:
+Prefer the unprefixed, server-side names below. The app sends only the whitelisted Firebase web settings and public VAPID key to the browser; it never sends `FCM_SERVICE_ACCOUNT_JSON` or its base64 alternative from `/api/firebase-config`.
 
 ```text
-NEXT_PUBLIC_FIREBASE_API_KEY=<Firebase web app apiKey>
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=<Firebase web app authDomain>
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=<Firebase project ID>
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=<Firebase web app storageBucket>
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=<Firebase web app messagingSenderId>
-NEXT_PUBLIC_FIREBASE_APP_ID=<Firebase web app appId>
-NEXT_PUBLIC_FIREBASE_VAPID_KEY=<Web Push certificates public key>
-FCM_SERVICE_ACCOUNT_JSON=<complete service-account JSON object>
+FIREBASE_API_KEY=<Firebase web app apiKey>
+FIREBASE_AUTH_DOMAIN=<Firebase web app authDomain>
+FIREBASE_PROJECT_ID=<Firebase project ID>
+FIREBASE_STORAGE_BUCKET=<Firebase web app storageBucket>
+FIREBASE_MESSAGING_SENDER_ID=<Firebase web app messagingSenderId>
+FIREBASE_APP_ID=<Firebase web app appId>
+FIREBASE_VAPID_KEY=<Web Push certificates public key>
+FCM_SERVICE_ACCOUNT_JSON_BASE64=<base64 of the complete service-account JSON file>
 ```
 
-`FCM_SERVICE_ACCOUNT_JSON` must contain the full downloaded JSON object, including `project_id`, `client_email`, and `private_key`. Configure it as a protected server-side secret. The service-account project ID must match `NEXT_PUBLIC_FIREBASE_PROJECT_ID`. The storage bucket value is included for completeness; browser messaging does not otherwise use Firebase Storage.
+For `FCM_SERVICE_ACCOUNT_JSON_BASE64`, encode the **entire downloaded JSON file** as one base64 string. On Linux, `base64 -w 0 service-account.json` prints it on one line. On macOS, use `base64 < service-account.json | tr -d '\n'`. Put the resulting value in your environment manager; do not paste it into chat, screenshots, source control, or a `NEXT_PUBLIC_` variable.
 
-The `NEXT_PUBLIC_` values are public Firebase client configuration, not service-account secrets. They are delivered to the browser and embedded in the dynamic service-worker response. Never put a private key, service-account JSON, or other credential in a `NEXT_PUBLIC_` variable.
+The app also accepts `FCM_SERVICE_ACCOUNT_JSON` containing valid JSON. If using a local `.env`, do not write an unquoted multi-line object after `FCM_SERVICE_ACCOUNT_JSON=`: dotenv reads only the first line, leaving a truncated `{` that cannot be parsed. Use the base64 variable above, or put the complete JSON on one line as a properly quoted env value. The parsed object must include `project_id`, `client_email`, and `private_key`; its project ID must match `FIREBASE_PROJECT_ID`.
 
-## 3. Browser behavior
+For backward compatibility, the public web-app settings and VAPID key may still use their `NEXT_PUBLIC_FIREBASE_*` names. Those Firebase client settings and the VAPID public key are not private credentials; the `NEXT_PUBLIC_` prefix does not make them secret. Never use that prefix for the service-account credential.
 
-Users enable notifications explicitly from **Preferences → Message notifications**. The browser asks for notification permission only after this click. Permission can also be denied in the browser's site settings. Users can turn notifications off from the same control; this removes the current browser token from Chatie and stores an opt-out on that browser.
+Restart the development server after editing `.env`. Redeploy after changing hosted environment variables.
 
-The app registers `/firebase-messaging-sw.js` at the origin root for background notifications. Firebase Web Messaging requires a secure context: use HTTPS in deployment, or `localhost` during development. Browser and device support varies; in particular, mobile browsers may require the app to be installed or may not support Web Push.
+## 3. Enable notifications in Chatie
 
-After setup, a successful opt-in registers the signed-in user's token in Upstash Redis. When that user receives a message, the server sends the push after message persistence. Text messages show a short preview; image, video, and PDF messages show a type label. Expired tokens are removed automatically. If Firebase Admin configuration is missing, rejected, or unavailable, the persisted message still succeeds and the live Socket.IO relay remains independent.
+Users enable notifications explicitly from **Preferences → Message notifications**. Tapping that control requests browser permission immediately from the click gesture, before waiting for network/configuration requests. If permission is already denied, browsers will not show another prompt; allow notifications for the site in browser settings, then try again. Users can turn notifications off from the same control.
+
+The app registers `/firebase-messaging-sw.js` at the origin root for background notifications. Firebase Web Messaging requires a secure context: use HTTPS in deployment, or `localhost` during development. Browser/device support varies; mobile browsers may require installing the site or may not support Web Push.
+
+After successful opt-in, the signed-in user's token is stored in Upstash Redis. New messages send a push after persistence; text shows a short preview and image, video, and PDF messages show a type label. Expired tokens are removed automatically. FCM failures do not roll back persisted messages or disable the independent Socket.IO relay.
 
 ## Troubleshooting
 
-- **Push notifications are not configured:** Verify all client variables and `FCM_SERVICE_ACCOUNT_JSON` are present in the environment for the deployed server, then redeploy.
-- **Permission denied:** Change notification permission for the site's origin in browser settings, then re-enable in Chatie.
-- **No background notification:** Confirm the site is served over HTTPS, the Firebase project/VAPID key match, and `/firebase-messaging-sw.js` is served from the same origin with status 200.
-- **Foreground notification is missing:** Keep the app signed in, allow notifications, and check that the browser supports Firebase Messaging.
+- **Firebase Admin credentials could not be parsed:** A multi-line unquoted `.env` value is truncated. Use `FCM_SERVICE_ACCOUNT_JSON_BASE64`, or a single-line JSON value.
+- **Credentials are missing or have the wrong project:** Check the variable names above and ensure the service account and web app use the same Firebase project. Never print credential contents to logs.
+- **Permission prompt does not appear:** If site permission is already denied, re-enable it in browser settings. If already granted, no prompt is needed; Chatie should register the token. Test over HTTPS or localhost.
+- **No background notification:** Confirm `/firebase-messaging-sw.js` returns status 200 on the same origin and that the app's Firebase project and VAPID key match.

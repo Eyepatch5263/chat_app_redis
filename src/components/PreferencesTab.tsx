@@ -7,7 +7,7 @@ import { useTheme } from "next-themes"
 import { usePreferences } from "@/store/usePrefrences"
 import { useSound } from "use-sound"
 import { onMessage, getToken, deleteToken } from "firebase/messaging"
-import { getBrowserMessaging, hasFirebaseWebConfig, firebaseVapidKey } from "@/lib/firebase-client"
+import { getBrowserMessaging, getFirebaseWebConfig } from "@/lib/firebase-client"
 import { registerPushTokenAction, unregisterPushTokenAction } from "@/actions/push.actions"
 
 const PUSH_OPT_OUT_KEY = "chatie-push-opt-out"
@@ -31,11 +31,6 @@ const PreferencesTab = () => {
   }
 
   const registerCurrentBrowser = useCallback(async (askPermission: boolean) => {
-    if (!hasFirebaseWebConfig()) {
-      setPushState("error")
-      setPushMessage("Push notifications are not configured for this app yet.")
-      return false
-    }
     if (!("Notification" in window) || !("serviceWorker" in navigator)) {
       setPushState("unsupported")
       setPushMessage("This browser does not support web push notifications.")
@@ -46,12 +41,23 @@ const PreferencesTab = () => {
     if (permission !== "granted" && askPermission) permission = await Notification.requestPermission()
     if (permission !== "granted") {
       setPushState("off")
-      setPushMessage(permission === "denied" ? "Notifications are blocked in browser settings." : "Notifications are off.")
+      setPushMessage(permission === "denied"
+        ? "Notifications are blocked for this site. Open the browser's site settings, allow notifications, then try again."
+        : "Notifications were not allowed. Tap Message notifications and choose Allow to continue.")
+      return false
+    }
+
+    // Keep the browser permission prompt above all network/config awaits: browsers
+    // require it to happen directly inside the user's click gesture.
+    const webConfig = await getFirebaseWebConfig()
+    if (!webConfig) {
+      setPushState("error")
+      setPushMessage("Push notifications are not configured on the app server yet.")
       return false
     }
 
     const messaging = await getBrowserMessaging()
-    if (!messaging || !firebaseVapidKey) {
+    if (!messaging) {
       setPushState("unsupported")
       setPushMessage("This browser cannot receive Firebase notifications.")
       return false
@@ -59,7 +65,7 @@ const PreferencesTab = () => {
 
     const registration = await navigator.serviceWorker.register("/firebase-messaging-sw.js", { scope: "/" })
     const token = await getToken(messaging, {
-      vapidKey: firebaseVapidKey,
+      vapidKey: webConfig.vapidKey,
       serviceWorkerRegistration: registration,
     })
     if (!token) {
@@ -95,7 +101,7 @@ const PreferencesTab = () => {
         if (active) setPushState("unsupported")
         return
       }
-      if (Notification.permission !== "granted" || !hasFirebaseWebConfig()) {
+      if (Notification.permission !== "granted" || !(await getFirebaseWebConfig())) {
         if (active) setPushState("off")
         return
       }
@@ -142,7 +148,8 @@ const PreferencesTab = () => {
         window.localStorage.removeItem(PUSH_OPT_IN_KEY)
         const messaging = await getBrowserMessaging()
         if (messaging) {
-          const token = await getToken(messaging, { vapidKey: firebaseVapidKey })
+          const webConfig = await getFirebaseWebConfig()
+          const token = webConfig ? await getToken(messaging, { vapidKey: webConfig.vapidKey }) : null
           if (token) await unregisterPushTokenAction(token)
           await deleteToken(messaging)
         }

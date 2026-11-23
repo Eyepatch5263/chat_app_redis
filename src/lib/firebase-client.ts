@@ -1,36 +1,66 @@
 import { getApp, getApps, initializeApp } from "firebase/app"
 import { getMessaging, isSupported, type Messaging } from "firebase/messaging"
 
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || process.env.FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || process.env.FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || process.env.FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || process.env.FIREBASE_APP_ID,
+export interface FirebaseWebConfig {
+  apiKey: string
+  authDomain: string
+  projectId: string
+  storageBucket?: string
+  messagingSenderId: string
+  appId: string
+  vapidKey: string
 }
 
-export const firebaseVapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY || process.env.FIREBASE_VAPID_KEY
+let configPromise: Promise<FirebaseWebConfig | null> | undefined
 
-export function hasFirebaseWebConfig() {
-  return Boolean(
-    firebaseConfig.apiKey &&
-    firebaseConfig.authDomain &&
-    firebaseConfig.projectId &&
-    firebaseConfig.messagingSenderId &&
-    firebaseConfig.appId &&
-    firebaseVapidKey
-  )
+export function getFirebaseWebConfig(): Promise<FirebaseWebConfig | null> {
+  if (typeof window === "undefined") return Promise.resolve(null)
+  if (!configPromise) {
+    configPromise = fetch("/api/firebase-config", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) return null
+        const result = await response.json() as {
+          configured?: boolean
+          config?: Omit<FirebaseWebConfig, "vapidKey">
+          vapidKey?: string
+        }
+        if (
+          !result.configured ||
+          !result.config?.apiKey ||
+          !result.config.authDomain ||
+          !result.config.projectId ||
+          !result.config.messagingSenderId ||
+          !result.config.appId ||
+          !result.vapidKey
+        ) return null
+
+        return { ...result.config, vapidKey: result.vapidKey }
+      })
+      .catch(() => null)
+  }
+  return configPromise
+}
+
+export async function hasFirebaseWebConfig() {
+  return Boolean(await getFirebaseWebConfig())
 }
 
 export async function getBrowserMessaging(): Promise<Messaging | null> {
-  if (typeof window === "undefined" || !hasFirebaseWebConfig()) return null
-  if (!(await isSupported())) return null
+  if (typeof window === "undefined") return null
+  const config = await getFirebaseWebConfig()
+  if (!config || !(await isSupported())) return null
 
   const appName = "chat-app"
   const app = getApps().some((existing) => existing.name === appName)
     ? getApp(appName)
-    : initializeApp(firebaseConfig, appName)
+    : initializeApp({
+        apiKey: config.apiKey,
+        authDomain: config.authDomain,
+        projectId: config.projectId,
+        storageBucket: config.storageBucket,
+        messagingSenderId: config.messagingSenderId,
+        appId: config.appId,
+      }, appName)
 
   return getMessaging(app)
 }

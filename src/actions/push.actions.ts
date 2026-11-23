@@ -3,6 +3,7 @@
 import { createHash } from "node:crypto"
 import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server"
 import { redis } from "@/lib/db"
+import { expectedFirebaseProjectId, readFirebaseServiceAccount } from "@/lib/firebase-service-account"
 
 function tokenOwnerKey(token: string) {
   const digest = createHash("sha256").update(token).digest("hex")
@@ -13,33 +14,25 @@ function isValidToken(token: unknown): token is string {
   return typeof token === "string" && token.length >= 20 && token.length <= 4096
 }
 
-function hasValidAdminConfiguration() {
-  const config = process.env.FCM_SERVICE_ACCOUNT_JSON
-
-  if (!config) return false
-  try {
-    const serviceAccount = JSON.parse(
-      Buffer.from(config,"base64").toString("utf8")
-    )
-    const expectedProjectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
-    return Boolean(
-      serviceAccount.project_id &&
-      serviceAccount.client_email &&
-      serviceAccount.private_key?.includes("-----BEGIN PRIVATE KEY-----") &&
-      (!expectedProjectId || serviceAccount.project_id === expectedProjectId)
-    )
-  } catch {
-    return false
-  }
-}
-
 export async function registerPushTokenAction(token: string) {
   const { getUser } = getKindeServerSession()
   const user = await getUser()
   if (!user) return { success: false as const, message: "You must be signed in to enable notifications." }
   if (!isValidToken(token)) return { success: false as const, message: "The notification registration token is invalid." }
-  if (!hasValidAdminConfiguration()) {
-    return { success: false as const, message: "Firebase Admin credentials are missing, invalid, or use a different Firebase project." }
+
+  const adminConfig = readFirebaseServiceAccount()
+  if (!adminConfig.ok) {
+    const message = adminConfig.reason === "missing"
+      ? "Firebase Admin credentials are not configured. Add FCM_SERVICE_ACCOUNT_JSON as valid JSON or FCM_SERVICE_ACCOUNT_JSON_BASE64."
+      : adminConfig.reason === "invalid-json"
+        ? "Firebase Admin credentials could not be parsed. Multiline unquoted JSON in .env is truncated; use a single-line JSON value or the base64 environment variable."
+        : "Firebase Admin credentials are missing required project_id, client_email, or private_key fields."
+    return { success: false as const, message }
+  }
+
+  const expectedProjectId = expectedFirebaseProjectId()
+  if (expectedProjectId && adminConfig.serviceAccount.project_id !== expectedProjectId) {
+    return { success: false as const, message: "Firebase Admin credentials belong to a different Firebase project than the web app configuration." }
   }
 
   const ownerKey = tokenOwnerKey(token)

@@ -3,6 +3,7 @@ import "server-only"
 import { cert, getApps, initializeApp } from "firebase-admin/app"
 import { getMessaging, type MulticastMessage } from "firebase-admin/messaging"
 import { redis } from "@/lib/db"
+import { expectedFirebaseProjectId, readFirebaseServiceAccount } from "@/lib/firebase-service-account"
 import type { MessageType } from "@/types/message"
 
 const ADMIN_APP_NAME = "chatie-fcm-admin"
@@ -18,29 +19,32 @@ interface NewMessagePush {
 }
 
 function getAdminMessaging() {
-  const serviceAccountJson = process.env.FCM_SERVICE_ACCOUNT_JSON
-  if (!serviceAccountJson) return null
+  const result = readFirebaseServiceAccount()
+  if (!result.ok) {
+    console.error(`FCM service account configuration is ${result.reason}`)
+    return null
+  }
+
+  const serviceAccount = result.serviceAccount
+  const expectedProjectId = expectedFirebaseProjectId()
+  if (expectedProjectId && expectedProjectId !== serviceAccount.project_id) {
+    console.error("FCM service account project does not match the Firebase web project")
+    return null
+  }
 
   try {
-    const serviceAccount = JSON.parse(Buffer.from(serviceAccountJson,"base64").toString("utf8"))
-    const expectedProjectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
-    if (!serviceAccount) {
-      console.error("FCM service account is missing required fields")
-      return null
-    }
-    if (expectedProjectId && expectedProjectId !== serviceAccount.project_id) {
-      console.error("FCM service account project does not match the Firebase web project")
-      return null
-    }
-
     const app = getApps().find((candidate) => candidate.name === ADMIN_APP_NAME) ??
       initializeApp({
-        credential: cert(serviceAccount),
+        credential: cert({
+          projectId: serviceAccount.project_id,
+          clientEmail: serviceAccount.client_email,
+          privateKey: serviceAccount.private_key,
+        }),
       }, ADMIN_APP_NAME)
 
     return getMessaging(app)
   } catch (error) {
-    console.error("FCM server configuration could not be initialized:", error instanceof Error ? error.message : "unknown error")
+    console.error("FCM service account could not initialize Firebase Admin:", error instanceof Error ? error.message : "unknown error")
     return null
   }
 }
